@@ -1,0 +1,39 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Apple silicon, matching the platform scripts/bootstrap pins.
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the toolchain and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .local
+            .qlot
+          key: toolchain-${{ runner.os }}-${{ hashFiles('scripts/bootstrap', 'qlfile.lock') }}
+
+      - name: Bootstrap SBCL and qlot
+        run: scripts/bootstrap
+
+      - name: Run the tests
+        run: |
+          scripts/test > test.log 2>&1 || true
+          grep -E '^(ok|FAIL)' test.log || true
+          grep -q '^ALL-TESTS-PASSED' test.log || { grep -v -E '^(ok |; )' test.log | tail -200; exit 1; }
+
+      - name: Keep the test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: test.log
+
