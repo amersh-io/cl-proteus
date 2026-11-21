@@ -174,3 +174,61 @@ const off = proteus.listen('test-count', () => window.offCount++); window.off = 
                       (wait-until (lambda () (member "plain" posted :test #'equal))))))
         (destroy-app-webview two)
         (destroy-app-webview one)))))
+
+(defun write-file (pathname text)
+  (ensure-directories-exist pathname)
+  (with-open-file (out pathname :direction :output :if-exists :supersede
+                                :external-format :utf-8)
+    (write-string text out))
+  pathname)
+
+(defun request-for (url &optional (method "GET"))
+  (cl-iris/webview::%make-request url method '() nil))
+
+(defun serve (handler url &optional (method "GET"))
+  "The body as a string (or NIL), content type and status HANDLER answers."
+  (multiple-value-bind (body type status) (funcall handler (request-for url method))
+    (values (and body (if (stringp body) body (sb-ext:octets-to-string body :external-format :utf-8)))
+            type status)))
+
+(defun frontend-checks ()
+  (uiop:with-temporary-file (:pathname marker :prefix "cl-proteus-frontend")
+    (let* ((base (merge-pathnames (format nil "~A/" (pathname-name marker))
+                                  (uiop:pathname-directory-pathname marker)))
+           (site (merge-pathnames "site/" base))
+           (secret (write-file (merge-pathnames "secret.txt" base) "secret")))
+      (unwind-protect
+           (let ((handler (progn
+                            (write-file (merge-pathnames "index.html" site) "<title>front</title><link rel=stylesheet href=css/site.css>")
+                            (write-file (merge-pathnames "css/site.css" site) "body { color: red }")
+                            (write-file (merge-pathnames "my file.txt" site) "spaced")
+                            (write-file (merge-pathnames "docs/index.html" site) "docs")
+                            (sb-posix:symlink (namestring secret) (namestring (merge-pathnames "link.txt" site)))
+                            (frontend-handler site))))
+             (check "the root of the front end is its index.html"
+                    (equal "<title>front</title><link rel=stylesheet href=css/site.css>"
+                           (serve handler "proteus://app/")))
+             (check "a file is served with its content type"
+                    (multiple-value-bind (body type status) (serve handler "proteus://app/css/site.css")
+                      (and (equal "body { color: red }" body)
+                           (search "text/css" type) (eql 200 status))))
+             (check "a directory path serves that directory's index.html"
+                    (equal "docs" (serve handler "proteus://app/docs/")))
+             (check "escaped characters, queries and fragments are handled"
+                    (equal "spaced" (serve handler "proteus://app/my%20file.txt?v=2#top")))
+             (check "a missing file answers 404"
+                    (null (serve handler "proteus://app/missing.js")))
+             (check ".. cannot leave the front end, escaped or not"
+                    (every (lambda (url) (null (serve handler url)))
+                           '("proteus://app/../secret.txt"
+                             "proteus://app/css/../../secret.txt"
+                             "proteus://app/%2e%2e/secret.txt"
+                             "proteus://app/css%2F..%2F..%2Fsecret.txt"
+                             "proteus://app/%2E%2E%5Csecret.txt")))
+             (check "a symbolic link out of the front end is not followed"
+                    (null (serve handler "proteus://app/link.txt")))
+             (check "a malformed escape answers 404"
+                    (null (serve handler "proteus://app/%zz")))
+             (check "only GET and HEAD are served"
+                    (eql 405 (nth-value 2 (serve handler "proteus://app/" "POST")))))
+        (uiop:delete-directory-tree base :validate t :if-does-not-exist :ignore)))))

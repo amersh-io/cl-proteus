@@ -29,11 +29,12 @@
   :serial t
   :components ((:file "package")
                (:file "json")
-               (:file "bridge")))
+               (:file "bridge")
+               (:file "frontend")))
 
 (defsystem "cl-proteus/test"
   :license "Apache-2.0"
-  :depends-on ("cl-proteus")
+  :depends-on ("cl-proteus" "sb-posix")
   :pathname "test/"
   :serial t
   :components ((:file "package")

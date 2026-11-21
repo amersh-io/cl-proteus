@@ -8,4 +8,8 @@
            #:emit-to
            #:*command-caller*
            #:*bridge-script*
-           #:to-json))
+           #:to-json
+           #:frontend-handler
+           #:*scheme*
+           #:*mime-types*
+           #:mime-type))

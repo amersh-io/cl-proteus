@@ -6,6 +6,7 @@
   (core-checks)
   (event-checks)
   (app-checks)
+  (frontend-checks)
   (let ((defaults cl-iris:*window-defaults*))
     ;; Test windows are transparent, so a run does not flash on the screen.
     (unless (sb-ext:posix-getenv "CL_PROTEUS_TEST_VISIBLE")
