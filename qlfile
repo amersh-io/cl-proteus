@@ -1,2 +1,2 @@
 dist quicklisp https://beta.quicklisp.org/dist/quicklisp.txt 2026-01-01
-git cl-iris https://github.com/amersh-io/cl-iris.git :ref 159fe1825e9fdc03ea63405e89a2a74bf52ea7b0
+git cl-iris https://github.com/amersh-io/cl-iris.git :tag v0.1.0

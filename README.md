@@ -71,7 +71,7 @@ talk to a separate shell process that owns the windows.
 ## Development
 
 ```sh
-scripts/bootstrap    # SBCL 2.6.9 and qlot under .local/, cl-iris at a pinned commit
+scripts/bootstrap    # SBCL 2.6.9 and qlot under .local/, cl-iris 0.1.0
 scripts/test         # the test suite; CL_PROTEUS_TEST_ONLY=<text> picks checks by name
 ```
 
