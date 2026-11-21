@@ -1,0 +1,15 @@
+#!/bin/sh
+# Run the test suite with the toolchain installed by scripts/bootstrap.
+# Exits non-zero when a test fails. CL_PROTEUS_TEST_ONLY=<text> runs only the
+# checks whose names contain <text>; CL_PROTEUS_TEST_VISIBLE=1 shows the test
+# windows, which are otherwise kept transparent.
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+export PATH="$ROOT/.local/bin:$PATH"
+cd "$ROOT"
+
+qlot exec sbcl --non-interactive \
+  --eval '(asdf:load-asd (truename "cl-proteus.asd"))' \
+  --eval '(asdf:test-system "cl-proteus")' \
+  --eval '(format t "~&ALL-TESTS-PASSED~%")'
