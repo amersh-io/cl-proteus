@@ -1,13 +1,7 @@
-;;;; cl-proteus -- the package most programs use: the core and the shell.
+;;;; The CL-PROTEUS package: the core and the shell in one place.
 
-(defpackage #:cl-proteus
-  (:use #:cl)
+(uiop:define-package #:cl-proteus
+  (:use-reexport #:cl-proteus/core #:cl-proteus/shell)
   (:documentation "Everything an application built with cl-proteus usually
-needs. Windows and webviews themselves come from cl-iris."))
-
-(in-package #:cl-proteus)
-
-(dolist (package '(#:cl-proteus/core #:cl-proteus/shell))
-  (do-external-symbols (symbol package)
-    (import symbol)
-    (export symbol)))
+needs: the external symbols of CL-PROTEUS/CORE and CL-PROTEUS/SHELL. Windows
+and webviews themselves come from cl-iris."))
