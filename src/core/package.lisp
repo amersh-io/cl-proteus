@@ -20,4 +20,17 @@
            #:command-error-command
            #:command-error-message
            #:js-name
-           #:*commands*))
+           #:*commands*
+           #:listen-event
+           #:listen-event-once
+           #:unlisten-event
+           #:listeners
+           #:listener
+           #:listener-id
+           #:listener-event
+           #:listener-function
+           #:listener-once-p
+           #:emit
+           #:dispatch-event
+           #:*event-source*
+           #:*event-forwarders*))

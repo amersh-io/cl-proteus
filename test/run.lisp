@@ -4,6 +4,7 @@
   "Run every test; signal an error if any of them fails."
   (setf *failures* '() *passed* 0)
   (core-checks)
+  (event-checks)
   (let ((defaults cl-iris:*window-defaults*))
     ;; Test windows are transparent, so a run does not flash on the screen.
     (unless (sb-ext:posix-getenv "CL_PROTEUS_TEST_VISIBLE")

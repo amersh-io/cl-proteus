@@ -17,7 +17,8 @@
   :pathname "src/core/"
   :serial t
   :components ((:file "package")
-               (:file "commands")))
+               (:file "commands")
+               (:file "events")))
 
 (defsystem "cl-proteus/shell"
   :description "The windows and the page bridge, on cl-iris."
