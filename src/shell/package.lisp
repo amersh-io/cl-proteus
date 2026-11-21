@@ -5,5 +5,7 @@
   (:export #:make-app-webview
            #:destroy-app-webview
            #:app-webviews
+           #:emit-to
            #:*command-caller*
-           #:*bridge-script*))
+           #:*bridge-script*
+           #:to-json))

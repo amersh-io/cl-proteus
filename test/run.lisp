@@ -12,7 +12,8 @@
     (unwind-protect
          (with-application (:activation-policy :accessory)
            (shell-checks)
-           (command-thread-checks))
+           (command-thread-checks)
+           (page-event-checks))
       (setf cl-iris:*window-defaults* defaults)))
   (format t "~&~D passed, ~D failed~%" *passed* (length *failures*))
   (when *failures*

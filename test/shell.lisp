@@ -114,3 +114,63 @@ window.result.then(v => { window.outcome = 'ok:' + JSON.stringify(v); },
         (destroy-app-webview webview))
       (check "a destroyed app webview leaves app-webviews"
              (not (member webview (app-webviews)))))))
+
+(defun page-event-checks ()
+  (with-window (window :title "events" :width 300 :height 200 :activate nil)
+    (let* ((posted '())
+           (one (make-app-webview window :html "<title>one</title>"
+                                         :on-message (lambda (m) (push m posted))))
+           (two (make-app-webview window :html "<title>two</title>" :bounds '(0 0 10 10))))
+      (unwind-protect
+           (progn
+             (wait-until (lambda () (and (equal "one" (eval-js one "document.title"))
+                                         (equal "two" (eval-js two "document.title")))))
+             (dolist (webview (list one two))
+               (eval-js webview "window.got = []; proteus.listen('test-lisp', p => window.got.push(p)); 0"))
+             (check "to-json writes JSON text through Foundation"
+                    (and (equal "\"a\\\"b\"" (to-json "a\"b"))
+                         (equal "[1,true,null]" (to-json (vector 1 t :null)))))
+             (check "emit from Lisp reaches page listeners with the payload"
+                    (progn
+                      (emit "test-lisp" (let ((h (make-hash-table :test 'equal)))
+                                          (setf (gethash "n" h) 1) h))
+                      (wait-until (lambda () (eql 1 (eval-js one "window.got.length ? window.got[0].n : 0"))))))
+             (check "emit reaches every app webview"
+                    (wait-until (lambda () (eql 1 (eval-js two "window.got.length")))))
+             (check "emit-to reaches one webview only"
+                    (progn
+                      (emit-to two "test-lisp" 2)
+                      (and (wait-until (lambda () (eql 2 (eval-js two "window.got.length"))))
+                           (progn (sleep 0.2)
+                                  (eql 1 (eval-js one "window.got.length"))))))
+             (check "a page's emit reaches Lisp listeners, with *event-source* its webview"
+                    (let* ((heard nil)
+                           (listener (listen-event "test-page"
+                                                   (lambda (payload)
+                                                     (setf heard (list payload *event-source*))))))
+                      (eval-js one "proteus.emit('test-page', 'hi'); 0")
+                      (prog1 (wait-until (lambda () (equal heard (list "hi" one))))
+                        (unlisten-event listener))))
+             (check "a page's emit reaches the other pages too"
+                    (progn
+                      (eval-js two "window.fromPage = null; proteus.listen('test-relay', p => window.fromPage = p); 0")
+                      (eval-js one "proteus.emit('test-relay', 5); 0")
+                      (wait-until (lambda () (eql 5 (eval-js two "window.fromPage"))))))
+             (check "proteus.once hears one event, and listen's result stops listening"
+                    (progn
+                      (eval-js one "window.onceCount = 0; window.offCount = 0;
+proteus.once('test-count', () => window.onceCount++);
+const off = proteus.listen('test-count', () => window.offCount++); window.off = off; 0")
+                      (emit "test-count")
+                      (wait-until (lambda () (eql 1 (eval-js one "window.offCount"))))
+                      (eval-js one "window.off(); 0")
+                      (emit "test-count")
+                      (sleep 0.3)
+                      (and (eql 1 (eval-js one "window.onceCount"))
+                           (eql 1 (eval-js one "window.offCount")))))
+             (check "other iris.post values still reach on-message"
+                    (progn
+                      (eval-js one "iris.post('plain'); 0")
+                      (wait-until (lambda () (member "plain" posted :test #'equal))))))
+        (destroy-app-webview two)
+        (destroy-app-webview one)))))

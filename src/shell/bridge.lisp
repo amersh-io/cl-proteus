@@ -1,25 +1,53 @@
 ;;;; The bridge between pages and Lisp.
 ;;;;
-;;;; Every frame of an app webview gets window.proteus.invoke(command, args),
-;;;; a Promise of the command's value. It rides on cl-iris's iris.invoke, which
-;;;; WebKit answers natively (WKScriptMessageHandlerWithReply): no JavaScript
-;;;; is evaluated to carry a call or its answer.
+;;;; Every frame of an app webview gets window.proteus:
+;;;;
+;;;;   proteus.invoke(command, args)  a Promise of the command's value
+;;;;   proteus.emit(event, payload)   to Lisp listeners and every page
+;;;;   proteus.listen(event, fn)      returns a function that stops listening
+;;;;   proteus.once(event, fn)        the same, for the next event only
+;;;;
+;;;; Invoke rides on cl-iris's iris.invoke, which WebKit answers natively
+;;;; (WKScriptMessageHandlerWithReply); emit rides on iris.post. Only events
+;;;; going to pages are carried by evaluating JavaScript.
 
 (in-package #:cl-proteus/shell)
 
 (defparameter *bridge-script*
   "(() => {
   if (window.proteus) return;
-  const invoke = (command, args = {}) => {
-    if (typeof command !== 'string') {
-      return Promise.reject(new TypeError('proteus.invoke: the command must be a string'));
+  const listeners = new Map();
+  const listen = (event, fn, once) => {
+    if (typeof event !== 'string' || typeof fn !== 'function') {
+      throw new TypeError('proteus.listen: an event name and a function');
     }
-    return window.iris.invoke({command, args});
+    const entry = {fn, once};
+    if (!listeners.has(event)) listeners.set(event, new Set());
+    listeners.get(event).add(entry);
+    return () => { listeners.get(event)?.delete(entry); };
   };
-  Object.defineProperty(window, 'proteus', {
-    value: Object.freeze({invoke}),
-    enumerable: true,
+  const dispatch = (event, payload) => {
+    for (const entry of [...(listeners.get(event) || [])]) {
+      if (entry.once) listeners.get(event).delete(entry);
+      try { entry.fn(payload, event); } catch (e) { console.error(e); }
+    }
+  };
+  const proteus = Object.freeze({
+    invoke: (command, args = {}) => {
+      if (typeof command !== 'string') {
+        return Promise.reject(new TypeError('proteus.invoke: the command must be a string'));
+      }
+      return window.iris.invoke({command, args});
+    },
+    emit: (event, payload = null) => {
+      if (typeof event !== 'string') throw new TypeError('proteus.emit: the event must be a string');
+      window.iris.post({proteusEvent: event, payload});
+    },
+    listen: (event, fn) => listen(event, fn, false),
+    once: (event, fn) => listen(event, fn, true),
   });
+  Object.defineProperty(window, 'proteus', {value: proteus, enumerable: true});
+  Object.defineProperty(window, '__proteusDispatch', {value: dispatch});
 })();"
   "The script that gives every frame window.proteus.")
 
@@ -33,7 +61,9 @@
 (defun app-webviews ()
   "The live webviews made with MAKE-APP-WEBVIEW."
   (sb-thread:with-mutex (*app-webviews-lock*)
-    (remove-if-not #'find-webview *app-webviews*)))
+    ;; A destroyed webview's address can be reused by a newer one, which
+    ;; FIND-WEBVIEW would then return: only the same object counts as live.
+    (remove-if-not (lambda (webview) (eq webview (find-webview webview))) *app-webviews*)))
 
 (defun forget-webview (webview)
   (sb-thread:with-mutex (*app-webviews-lock*)
@@ -72,16 +102,49 @@ never holds up the window, and ANSWER the page with its value or error."
     (serious-condition (c)
       (funcall answer nil :error (princ-to-string c)))))
 
+;;; Events
+
+(defun page-event-p (message)
+  (and (hash-table-p message)
+       (nth-value 1 (gethash "proteusEvent" message))))
+
+(defun receive-page-event (webview message)
+  "A page emitted an event: tell the Lisp listeners and every page."
+  (let ((event (gethash "proteusEvent" message))
+        (payload (gethash "payload" message)))
+    (when (stringp event)
+      (dispatch-event event payload :source webview)
+      (emit-to-pages event payload))))
+
+(defun emit-to (webview event &optional payload)
+  "Send the event EVENT with PAYLOAD to the page in WEBVIEW only."
+  (check-type event string)
+  (eval-js webview (format nil "window.__proteusDispatch && window.__proteusDispatch(~A, ~A)"
+                           (to-json event) (to-json payload))
+           :wait nil)
+  event)
+
+(defun emit-to-pages (event payload)
+  "Send EVENT with PAYLOAD to the page in every app webview."
+  (dolist (webview (app-webviews))
+    (handler-case (emit-to webview event payload)
+      (serious-condition (c)
+        (format *error-output* "~&;; cl-proteus: error emitting ~S to a page: ~A~%" event c)))))
+
+(pushnew 'emit-to-pages *event-forwarders*)
+
 ;;; App webviews
 
 (defun make-app-webview (window &rest options
                          &key on-message init-scripts url headers html (base-url "about:blank")
                          &allow-other-keys)
   "Make a webview in WINDOW, as cl-iris's MAKE-WEBVIEW does with OPTIONS,
-whose pages can call commands with proteus.invoke(command, args).
+whose pages get window.proteus: invoke for commands, emit, listen and once
+for events.
 
 Commands run on threads of their own, with *COMMAND-CALLER* bound to this
-webview; an error rejects the page's Promise with its message. ON-INVOKE belongs
+webview; an error rejects the page's Promise with its message. ON-MESSAGE
+still hears iris.post values that are not proteus events. ON-INVOKE belongs
 to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
   (when (getf options :on-invoke)
     (error "MAKE-APP-WEBVIEW answers invoke itself; define commands instead of :ON-INVOKE."))
@@ -97,7 +160,10 @@ to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
                   :invoke-async t
                   :on-invoke (lambda (request answer)
                                (answer-invoke (car box) request answer))
-                  :on-message on-message
+                  :on-message (lambda (message)
+                                (if (page-event-p message)
+                                    (receive-page-event (car box) message)
+                                    (when on-message (funcall on-message message))))
                   :init-scripts (cons *bridge-script* init-scripts)
                   options)))
     ;; Known before any page can call: content is loaded only now.

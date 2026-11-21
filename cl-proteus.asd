@@ -27,6 +27,7 @@
   :pathname "src/shell/"
   :serial t
   :components ((:file "package")
+               (:file "json")
                (:file "bridge")))
 
 (defsystem "cl-proteus/test"
