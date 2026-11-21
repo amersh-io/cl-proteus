@@ -93,3 +93,53 @@
 (defun test-symbol-listener (payload)
   (declare (ignore payload))
   nil)
+
+(define-app test-app
+  (:title "Test")
+  (:frontend "frontend/")
+  (:state :count 1 :name "first")
+  (:window main :title "Main" :width 300 :height 200 :html "<title>main</title>"))
+
+(defun app-checks ()
+  (let ((app (find-app 'test-app)))
+    (check "define-app declares an app found by name"
+           (and (typep app 'app) (member app (apps)) (equal "Test" (app-title app))))
+    (check "a window spec keeps its id and options"
+           (equal '(main :title "Main" :width 300 :height 200 :html "<title>main</title>")
+                  (first (app-windows app))))
+    (check "a relative front end is taken from the source file's directory"
+           (equal (app-frontend app)
+                  (merge-pathnames "test/frontend/" (asdf:system-source-directory "cl-proteus"))))
+    (check "app-state reads the initial state"
+           (and (eql 1 (app-state :count app)) (equal "first" (app-state :name app))))
+    (check "setf app-state and update-app-state change it"
+           (progn (setf (app-state :name app) "second")
+                  (and (= 2 (update-app-state :count #'1+ app))
+                       (equal "second" (app-state :name app)))))
+    (check "update-app-state is atomic across threads"
+           (let ((threads (loop repeat 8
+                                collect (sb-thread:make-thread
+                                         (lambda ()
+                                           (dotimes (i 1000) (update-app-state :count #'1+ app)))))))
+             (mapc #'sb-thread:join-thread threads)
+             (= (+ 2 8000) (app-state :count app))))
+    (check "app-state uses *app* when no app is given"
+           (let ((*app* app)) (equal "second" (app-state :name))))
+    (check "app-state without an app in effect is an error"
+           (let ((*app* nil))
+             (handler-case (progn (app-state :count) nil) (error () t))))
+    (check "evaluating define-app again updates the app, keeps its state and calls the hook"
+           (let* ((seen nil)
+                  (*app-redefined-hook* (list (lambda (a) (setf seen a)))))
+             (eval '(define-app test-app
+                     (:title "Test again")
+                     (:state :count 0 :extra t)
+                     (:window main :title "Main again")))
+             (and (eq seen app)
+                  (equal "Test again" (app-title app))
+                  (= 8002 (app-state :count app))
+                  (eq t (app-state :extra app))
+                  (null (app-frontend app)))))
+    (check "an app prints with its name and describes its state"
+           (and (search "TEST-APP" (prin1-to-string app))
+                (search ":EXTRA" (with-output-to-string (s) (describe app s)))))))

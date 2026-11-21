@@ -33,4 +33,17 @@
            #:emit
            #:dispatch-event
            #:*event-source*
-           #:*event-forwarders*))
+           #:*event-forwarders*
+           #:app
+           #:app-name
+           #:app-title
+           #:app-frontend
+           #:app-windows
+           #:define-app
+           #:ensure-app
+           #:find-app
+           #:apps
+           #:*app*
+           #:*app-redefined-hook*
+           #:app-state
+           #:update-app-state))

@@ -18,7 +18,8 @@
   :serial t
   :components ((:file "package")
                (:file "commands")
-               (:file "events")))
+               (:file "events")
+               (:file "app")))
 
 (defsystem "cl-proteus/shell"
   :description "The windows and the page bridge, on cl-iris."
