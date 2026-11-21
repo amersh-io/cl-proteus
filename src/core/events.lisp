@@ -33,6 +33,12 @@ page emitted, or NIL for one emitted from Lisp.")
   (:documentation "A Lisp function listening for events of one name. LISTEN-EVENT
 returns one; UNLISTEN-EVENT takes it."))
 
+(setf (documentation 'listener-id 'function) "The number that tells LISTENER from every other."
+      (documentation 'listener-event 'function) "The name of the event LISTENER hears."
+      (documentation 'listener-function 'function) "The function LISTENER calls with each payload."
+      (documentation 'listener-once-p 'function)
+      "True if LISTENER hears one event and then removes itself.")
+
 (defmethod print-object ((listener listener) stream)
   (print-unreadable-object (listener stream :type t)
     (format stream "~S~:[~; once~] #~D"

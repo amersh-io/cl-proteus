@@ -22,6 +22,18 @@ its PARAMETERS as the page passes them."
   (parameters '() :type list)
   (documentation nil))
 
+(setf (documentation 'command-name 'function) "The name pages call the command by."
+      (documentation 'command-function 'function)
+      "The symbol naming the function the command calls."
+      (documentation 'command-parameters 'function)
+      "The names of the command's arguments, as pages pass them."
+      (documentation 'command-documentation 'function)
+      "The command's documentation string, or NIL.")
+
+(defmethod print-object ((command command) stream)
+  (print-unreadable-object (command stream :type t)
+    (format stream "~S (~{~A~^ ~})" (command-name command) (command-parameters command))))
+
 (define-condition command-error (error)
   ((command :initarg :command :initform nil :reader command-error-command)
    (message :initarg :message :reader command-error-message))
@@ -30,6 +42,11 @@ its PARAMETERS as the page passes them."
                          (command-error-command c) (command-error-message c))))
   (:documentation "A page called a command wrongly: an unknown name, or
 arguments that do not match the command's parameters."))
+
+(setf (documentation 'command-error-command 'function)
+      "The name of the command that was called, or NIL if there was none."
+      (documentation 'command-error-message 'function)
+      "What was wrong with the call.")
 
 (defun js-name (symbol)
   "The name SYMBOL goes by in JavaScript: USER-NAME becomes \"userName\"."

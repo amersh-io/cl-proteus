@@ -34,6 +34,13 @@ OPTIONS are MAKE-WINDOW's and :PAGE, :URL or :HTML for the webview.")
          :documentation "Guards the state."))
   (:documentation "An application: what DEFINE-APP declares. RUN-APP shows it."))
 
+(setf (documentation 'app-name 'function) "The symbol APP was defined with."
+      (documentation 'app-title 'function) "APP's name as people see it."
+      (documentation 'app-frontend 'function)
+      "The directory APP's pages are served from under proteus://app/, or NIL."
+      (documentation 'app-windows 'function)
+      "APP's window specifications: lists (ID . OPTIONS).")
+
 (defmethod print-object ((app app) stream)
   (print-unreadable-object (app stream :type t)
     (format stream "~S~@[ ~S~] ~D window~:P"

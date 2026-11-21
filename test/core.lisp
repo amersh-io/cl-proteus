@@ -17,6 +17,8 @@
 (defun core-checks ()
   (check "a command is registered under its lower-case name"
          (and (find-command "test-add") (member "test-add" (list-commands) :test #'string=)))
+  (check "a command prints with its name and arguments"
+         (search "\"test-add\" (a b)" (prin1-to-string (find-command "test-add"))))
   (check "a command keeps its docstring"
          (equal "Add two numbers." (command-documentation (find-command "test-add"))))
   (check "a defined command is still an ordinary function"
@@ -143,3 +145,23 @@
     (check "an app prints with its name and describes its state"
            (and (search "TEST-APP" (prin1-to-string app))
                 (search ":EXTRA" (with-output-to-string (s) (describe app s)))))))
+
+(defun undocumented-symbols (package)
+  "External symbols of PACKAGE that name a function, macro, variable or class
+without documentation."
+  (let ((missing '()))
+    (do-external-symbols (symbol package)
+      (when (or (and (fboundp symbol) (not (documentation symbol 'function)))
+                (and (fboundp `(setf ,symbol)) (not (documentation `(setf ,symbol) 'function))
+                     (not (documentation symbol 'function)))
+                (and (boundp symbol) (not (documentation symbol 'variable)))
+                (and (find-class symbol nil) (not (documentation symbol 'type))))
+        (push symbol missing)))
+    (sort missing #'string< :key #'symbol-name)))
+
+(defun documentation-checks ()
+  (dolist (package '(:cl-proteus/core :cl-proteus/shell :cl-proteus))
+    (let ((missing (undocumented-symbols package)))
+      (check (format nil "every external symbol of ~(~A~) is documented" package)
+             (or (null missing)
+                 (progn (format t "~&;; undocumented: ~{~(~S~)~^ ~}~%" missing) nil))))))
