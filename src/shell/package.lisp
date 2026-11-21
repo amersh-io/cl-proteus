@@ -12,4 +12,10 @@
            #:frontend-handler
            #:*scheme*
            #:*mime-types*
-           #:mime-type))
+           #:mime-type
+           #:run-app
+           #:stop-app
+           #:app-running-p
+           #:app-window
+           #:app-webview
+           #:refresh-app))

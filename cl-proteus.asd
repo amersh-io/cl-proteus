@@ -30,7 +30,8 @@
   :components ((:file "package")
                (:file "json")
                (:file "bridge")
-               (:file "frontend")))
+               (:file "frontend")
+               (:file "app")))
 
 (defsystem "cl-proteus/test"
   :license "Apache-2.0"
@@ -40,5 +41,6 @@
   :components ((:file "package")
                (:file "core")
                (:file "shell")
+               (:file "app")
                (:file "run"))
   :perform (test-op (o c) (symbol-call :cl-proteus/test :run!)))

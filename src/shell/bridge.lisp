@@ -86,15 +86,17 @@
       (error 'command-error :command name :message "args must be an object"))
     (values name arguments)))
 
-(defun answer-invoke (webview request answer)
+(defun answer-invoke (webview app request answer)
   "Run the command REQUEST names on a thread of its own, so a slow command
-never holds up the window, and ANSWER the page with its value or error."
+never holds up the window, and ANSWER the page with its value or error.
+*APP* is APP while it runs, if the webview belongs to one."
   (handler-case
       (multiple-value-bind (name arguments) (command-request request)
         (sb-thread:make-thread
          (lambda ()
            (handler-case
-               (let ((*command-caller* webview))
+               (let ((*command-caller* webview)
+                     (*app* (or app *app*)))
                  (funcall answer (call-command name arguments)))
              (serious-condition (c)
                (funcall answer nil :error (princ-to-string c)))))
@@ -136,14 +138,15 @@ never holds up the window, and ANSWER the page with its value or error."
 ;;; App webviews
 
 (defun make-app-webview (window &rest options
-                         &key on-message init-scripts url headers html (base-url "about:blank")
+                         &key app on-message init-scripts url headers html (base-url "about:blank")
                          &allow-other-keys)
   "Make a webview in WINDOW, as cl-iris's MAKE-WEBVIEW does with OPTIONS,
 whose pages get window.proteus: invoke for commands, emit, listen and once
 for events.
 
 Commands run on threads of their own, with *COMMAND-CALLER* bound to this
-webview; an error rejects the page's Promise with its message. ON-MESSAGE
+webview and *APP* to APP, if given; an error rejects the page's Promise with
+its message. ON-MESSAGE
 still hears iris.post values that are not proteus events. ON-INVOKE belongs
 to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
   (when (getf options :on-invoke)
@@ -152,14 +155,14 @@ to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
     (error "Give MAKE-APP-WEBVIEW a URL or HTML, not both."))
   (let* ((box (list nil))
          (options (loop for (key value) on options by #'cddr
-                        unless (member key '(:on-message :init-scripts :url :headers :html
+                        unless (member key '(:app :on-message :init-scripts :url :headers :html
                                              :base-url :invoke-async))
                           append (list key value)))
          (webview
            (apply #'make-webview window
                   :invoke-async t
                   :on-invoke (lambda (request answer)
-                               (answer-invoke (car box) request answer))
+                               (answer-invoke (car box) app request answer))
                   :on-message (lambda (message)
                                 (if (page-event-p message)
                                     (receive-page-event (car box) message)
