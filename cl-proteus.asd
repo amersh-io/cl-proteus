@@ -42,5 +42,6 @@
                (:file "core")
                (:file "shell")
                (:file "app")
+               (:file "examples")
                (:file "run"))
   :perform (test-op (o c) (symbol-call :cl-proteus/test :run!)))
