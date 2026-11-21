@@ -1,0 +1,70 @@
+#!/bin/sh
+# Install a pinned SBCL and qlot under .local/ in this repository, then fetch
+# the dependencies listed in qlfile into .qlot/. Safe to run again: anything
+# already in place is skipped.
+#
+#   scripts/bootstrap
+#   export PATH="$PWD/.local/bin:$PATH"
+set -eu
+
+SBCL_VERSION=2.6.9
+QLOT_VERSION=1.8.4
+QLOT_SHA256=1b97df7d7ac3b32f6350d0519a048792f2c4da497d43e6346bbe47e488b50ff4
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+LOCAL="$ROOT/.local"
+
+# cl-proteus runs on cl-iris, which targets macOS first; only Apple silicon
+# is pinned for now.
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64)   PLATFORM=arm64-darwin
+                  SBCL_SHA256=7e4c3030ecd70deddc3b6d196e8514da4c9d2066ee06bd962ef5913abdada566 ;;
+  *) echo "bootstrap: unsupported platform $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+esac
+
+sha256() {
+  if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
+}
+
+# fetch URL SHA256 FILE -- download, and keep the file only if the hash matches.
+fetch() {
+  curl -fsSL -o "$3" "$1"
+  actual=$(sha256 "$3")
+  if [ "$actual" != "$2" ]; then
+    rm -f "$3"
+    echo "bootstrap: sha256 mismatch for $1 (expected $2, got $actual)" >&2
+    exit 1
+  fi
+}
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$LOCAL/bin"
+
+if [ "$(cat "$LOCAL/sbcl/VERSION" 2>/dev/null)" != "$SBCL_VERSION-$PLATFORM" ]; then
+  name="sbcl-$SBCL_VERSION-$PLATFORM-binary"
+  fetch "https://github.com/roswell/sbcl_bin/releases/download/$SBCL_VERSION/$name.tar.bz2" "$SBCL_SHA256" "$tmp/sbcl.tar.bz2"
+  tar -xjf "$tmp/sbcl.tar.bz2" -C "$tmp"
+  rm -rf "$LOCAL/sbcl"
+  (cd "$tmp/sbcl-$SBCL_VERSION-$PLATFORM" && INSTALL_ROOT="$LOCAL/sbcl" sh install.sh >/dev/null)
+  echo "$SBCL_VERSION-$PLATFORM" > "$LOCAL/sbcl/VERSION"
+fi
+ln -sf ../sbcl/bin/sbcl "$LOCAL/bin/sbcl"
+export PATH="$LOCAL/bin:$PATH"
+
+if [ "$(cat "$LOCAL/qlot/VERSION" 2>/dev/null)" != "$QLOT_VERSION" ]; then
+  fetch "https://github.com/fukamachi/qlot/releases/download/$QLOT_VERSION/qlot-$QLOT_VERSION.tar.gz" "$QLOT_SHA256" "$tmp/qlot.tar.gz"
+  tar -xzf "$tmp/qlot.tar.gz" -C "$tmp"
+  rm -rf "$LOCAL/qlot"
+  mv "$tmp/qlot" "$LOCAL/qlot"
+  # OpenSSL 4 removed ASN1_STRING_data. Patch qlot's bundled cl+ssl until
+  # cl-plus-ssl#202 is merged (see qlot#363).
+  (cd "$LOCAL/qlot/.bundle-libs/software/cl+ssl-20260101-git" && patch -s -p1 < "$ROOT/scripts/patches/cl+ssl-openssl4.patch")
+  # install.sh would link into $HOME, so it is not used; setup.sh only compiles qlot.
+  sh "$LOCAL/qlot/scripts/setup.sh" >/dev/null 2>&1
+  echo "$QLOT_VERSION" > "$LOCAL/qlot/VERSION"
+fi
+ln -sf ../qlot/bin/qlot "$LOCAL/bin/qlot"
+
+cd "$ROOT"
+qlot install --no-cache
