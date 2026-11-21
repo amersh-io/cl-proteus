@@ -1,0 +1,4 @@
+body { font: 15px -apple-system, sans-serif; margin: 2em; color: #222; }
+h1 { font-size: 20px; }
+dt { font-weight: 600; margin-top: .5em; }
+@media (prefers-color-scheme: dark) { body { color: #eee; background: #1c1c1e; } }
