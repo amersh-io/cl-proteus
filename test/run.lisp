@@ -11,7 +11,8 @@
       (setf cl-iris:*window-defaults* (list* :alpha 0 defaults)))
     (unwind-protect
          (with-application (:activation-policy :accessory)
-           (shell-checks))
+           (shell-checks)
+           (command-thread-checks))
       (setf cl-iris:*window-defaults* defaults)))
   (format t "~&~D passed, ~D failed~%" *passed* (length *failures*))
   (when *failures*

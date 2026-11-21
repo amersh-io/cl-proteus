@@ -3,4 +3,7 @@
 (defpackage #:cl-proteus/shell
   (:use #:cl #:cl-iris #:cl-proteus/core)
   (:export #:make-app-webview
+           #:destroy-app-webview
+           #:app-webviews
+           #:*command-caller*
            #:*bridge-script*))

@@ -79,3 +79,38 @@ window.result.then(v => { window.outcome = 'ok:' + JSON.stringify(v); },
                (make-app-webview window :on-invoke (lambda (x) x))
                nil)
            (error () t))))
+
+(define-command test-on-main-thread ()
+  (main-thread-p))
+
+(define-command test-caller-known ()
+  (and *command-caller* t))
+
+(define-command test-sleep (seconds)
+  (sleep seconds)
+  seconds)
+
+(defun command-thread-checks ()
+  (with-window (window :title "commands" :width 300 :height 200 :activate nil)
+    (let ((webview (make-app-webview window :html "<title>commands</title>")))
+      (unwind-protect
+           (progn
+             (wait-until (lambda () (equal "commands" (eval-js webview "document.title"))))
+             (check "a command runs off the main thread"
+                    (equal "ok:false"
+                           (page-value webview "window.result = proteus.invoke('test-on-main-thread')")))
+             (check "a command knows the webview that called it"
+                    (equal "ok:true"
+                           (page-value webview "window.result = proteus.invoke('test-caller-known')")))
+             (check "a slow command does not hold up the window"
+                    (progn
+                      (eval-js webview "window.slow = proteus.invoke('test-sleep', {seconds: 1}); 0")
+                      (let ((start (get-internal-real-time)))
+                        (eval-js webview "1 + 1")
+                        (< (- (get-internal-real-time) start)
+                           (* 0.3 internal-time-units-per-second)))))
+             (check "app-webviews lists a live app webview"
+                    (member webview (app-webviews))))
+        (destroy-app-webview webview))
+      (check "a destroyed app webview leaves app-webviews"
+             (not (member webview (app-webviews)))))))
