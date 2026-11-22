@@ -38,4 +38,4 @@
   "Run the app until its window is closed. OPTIONS go to RUN-APP."
   (apply #'run-app 'hello options))
 
-#-cl-proteus-example-test (main)
+#-(or cl-proteus-example-test cl-proteus-bundle) (main)

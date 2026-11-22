@@ -1,0 +1,26 @@
+#!/bin/sh
+# Build a signed .app from an application, with the toolchain installed by
+# scripts/bootstrap, and print its path:
+#
+#   scripts/bundle <app> <file.lisp | system> [:option value]...
+#   scripts/bundle cl-proteus.examples.frontend-dir::frontend-dir \
+#     examples/frontend-dir.lisp :identifier org.example.frontend-dir
+#
+# Options are those of cl-proteus/bundle:bundle-app that take text, such as
+# :name, :identifier, :version, :icon, :identity and :output-directory.
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+export PATH="$ROOT/.local/bin:$PATH"
+
+if [ $# -lt 2 ]; then
+  sed -n '2,11p' "$0" >&2
+  exit 2
+fi
+
+sbcl --noinform --non-interactive --no-userinit \
+  --load "$ROOT/.qlot/setup.lisp" \
+  --eval "(asdf:load-asd (truename \"$ROOT/cl-proteus.asd\"))" \
+  --eval '(asdf:load-system "cl-proteus/bundle")' \
+  --eval '(cl-proteus/bundle::command-line (rest sb-ext:*posix-argv*))' \
+  --end-toplevel-options "$@"

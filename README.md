@@ -5,8 +5,9 @@ A Tauri-style application framework for Common Lisp, built on
 for the interface, and Lisp behind them, all in one SBCL process that you
 can change from the REPL while it runs.
 
-> **Status:** early. Commands, events, applications, a served front end and
-> shared state work; bundling and a socket transport are still to come.
+> **Status:** early. Commands, events, applications, a served front end,
+> shared state and signed `.app` bundles work; a socket transport is still
+> to come.
 > cl-proteus is an independent project, not affiliated with Tauri.
 
 ```lisp
@@ -97,6 +98,50 @@ directory and the state its commands share; `run-app` shows it.
 - `app-window` and `app-webview` find a running app's windows;
   `describe` shows an app's windows and state.
 
+## Bundling
+
+`cl-proteus/bundle` builds a signed macOS application from an app:
+
+```lisp
+(asdf:load-system "cl-proteus/bundle")
+(cl-proteus/bundle:bundle-app "cl-proteus.examples.frontend-dir::frontend-dir"
+                              :load "examples/frontend-dir.lisp"
+                              :identifier "org.example.frontend-dir")
+;; => #P".../Front end.app/"
+```
+
+or, from a shell, `scripts/bundle <app> <file.lisp | system> [:option value]...`.
+
+- A fresh Lisp loads the `:system` or the `:load` files and saves the image;
+  it never runs the app, so no window or other Cocoa state is saved with it.
+  While it loads, the feature `:cl-proteus-bundle` is present, so a file
+  that runs its app when loaded can skip that (`#-cl-proteus-bundle (main)`).
+- The app is named by a symbol, or by its text when this Lisp does not have
+  the app's package yet.
+- The front-end directory is copied into the bundle, and the app serves it
+  from there.
+- `:name`, `:identifier`, `:version`, `:icon` (an `.icns` file) and `:info`
+  (more `Info.plist` entries) describe the bundle; `:run-options` go to
+  `run-app`.
+- The bundle is signed under the hardened runtime, ad hoc unless
+  `:identity` names a signing identity. SBCL runs code it compiles into
+  memory, so its runtime gets the one entitlement that allows that
+  (`*entitlements*`). Notarizing is left to `xcrun notarytool`.
+
+```
+Front end.app/Contents/
+  Info.plist
+  MacOS/frontend-dir     a small launcher, the bundle's executable
+  MacOS/sbcl             the SBCL runtime
+  Resources/app.core     the saved image
+  Resources/frontend/    the front end
+```
+
+The image is kept apart from the runtime because a code signature cannot
+cover a core appended to an executable, which is how `save-lisp-and-die`
+makes one; the launcher starts the runtime with the core whatever
+`SBCL_HOME` says. Building it needs a C compiler (`xcode-select --install`).
+
 ## Systems
 
 | System | What it holds |
@@ -104,6 +149,7 @@ directory and the state its commands share; `run-app` shows it.
 | `cl-proteus/core` | commands, events, applications and their state; does not load cl-iris or Cocoa |
 | `cl-proteus/shell` | the page bridge, the front-end server and `run-app`, on cl-iris |
 | `cl-proteus` | both, and the `cl-proteus` package that re-exports them |
+| `cl-proteus/bundle` | building a signed `.app`; loaded where you build, not in the app |
 
 The core stays free of Cocoa so that a process which only defines an
 application can load it without AppKit and, later, talk to a separate shell
@@ -135,7 +181,6 @@ qlot exec sbcl --load examples/hello.lisp
 
 ## Roadmap
 
-- Building a signed `.app` bundle.
 - A socket transport, so commands and views can live in another Lisp image
   than the shell that shows them.
 

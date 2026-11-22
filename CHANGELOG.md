@@ -31,6 +31,18 @@ change the API. No version has been released yet.
 - A front-end directory is served at `proteus://app/`, with nothing outside
   it reachable.
 
+### Bundling
+
+- `cl-proteus/bundle`: `bundle-app` builds `Name.app` from an app, its
+  image saved by a fresh Lisp that never runs it, its front end copied in
+  and served from the bundle, and signs it under the hardened runtime (ad
+  hoc, or with a signing identity). `scripts/bundle` does the same from a
+  shell.
+- The runtime and the image are kept apart, started by a small launcher, so
+  that `codesign --verify --deep --strict` passes.
+- Examples skip running their app when loaded for a bundle
+  (`:cl-proteus-bundle`).
+
 ### Around the code
 
 - Examples in `examples/`, each run by the test suite in a child Lisp.

@@ -52,4 +52,4 @@
       (when timer (cl-iris:cancel-timer timer))
       (unlisten-event listener))))
 
-#-cl-proteus-example-test (main)
+#-(or cl-proteus-example-test cl-proteus-bundle) (main)
