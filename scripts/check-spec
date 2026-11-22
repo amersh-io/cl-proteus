@@ -1,0 +1,10 @@
+#!/bin/sh
+# Run the `quint test` suite of the Quint model in spec/.
+# Prints SPEC-TESTS-PASSED at the end when it passes.
+set -eu
+
+cd "$(dirname "$0")/../spec"
+
+quint test invoke-lifecycle.qnt --main guarded --max-samples 1
+
+echo SPEC-TESTS-PASSED

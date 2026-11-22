@@ -37,3 +37,35 @@ jobs:
           name: test-log
           path: test.log
 
+
+  spec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Quint
+        run: npm install -g @informalsystems/quint@0.32.0
+
+      # Quint fetches its Rust evaluator from the GitHub API without a token,
+      # which shared runners hit the rate limit on; fetch it with one.
+      - name: Fetch the Quint evaluator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dir="$HOME/.quint/rust-evaluator-v0.6.0"
+          mkdir -p "$dir"
+          gh release download evaluator/v0.6.0 --repo informalsystems/quint \
+            --pattern 'quint_evaluator-x86_64-unknown-linux-gnu.tar.gz' --dir "$dir"
+          tar -xzf "$dir"/quint_evaluator-*.tar.gz -C "$dir"
+          rm "$dir"/quint_evaluator-*.tar.gz
+          chmod +x "$dir/quint_evaluator"
+
+      - name: Run the Quint model tests
+        run: |
+          scripts/check-spec > spec.log 2>&1 || true
+          grep -q '^SPEC-TESTS-PASSED' spec.log || { tail -80 spec.log; exit 1; }
