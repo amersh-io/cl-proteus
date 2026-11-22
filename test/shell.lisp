@@ -83,8 +83,10 @@ window.result.then(v => { window.outcome = 'ok:' + JSON.stringify(v); },
 (define-command test-on-main-thread ()
   (main-thread-p))
 
+(defvar *expected-caller* nil)
+
 (define-command test-caller-known ()
-  (and *command-caller* t))
+  (and *command-caller* (eq *command-caller* *expected-caller*)))
 
 (define-command test-sleep (seconds)
   (sleep seconds)
@@ -93,6 +95,7 @@ window.result.then(v => { window.outcome = 'ok:' + JSON.stringify(v); },
 (defun command-thread-checks ()
   (with-window (window :title "commands" :width 300 :height 200 :activate nil)
     (let ((webview (make-app-webview window :html "<title>commands</title>")))
+      (setf *expected-caller* webview)
       (unwind-protect
            (progn
              (wait-until (lambda () (equal "commands" (eval-js webview "document.title"))))

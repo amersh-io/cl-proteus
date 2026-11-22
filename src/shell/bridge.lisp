@@ -60,10 +60,9 @@
 
 (defun app-webviews ()
   "The live webviews made with MAKE-APP-WEBVIEW."
-  (sb-thread:with-mutex (*app-webviews-lock*)
-    ;; A destroyed webview's address can be reused by a newer one, which
-    ;; FIND-WEBVIEW would then return: only the same object counts as live.
-    (remove-if-not (lambda (webview) (eq webview (find-webview webview))) *app-webviews*)))
+  ;; Outside the lock: WEBVIEW-DESTROYED-P asks the main thread.
+  (remove-if #'webview-destroyed-p
+             (sb-thread:with-mutex (*app-webviews-lock*) (copy-list *app-webviews*))))
 
 (defun forget-webview (webview)
   (sb-thread:with-mutex (*app-webviews-lock*)
@@ -86,21 +85,22 @@
       (error 'command-error :command name :message "args must be an object"))
     (values name arguments)))
 
-(defun answer-invoke (webview app request answer)
+(defun answer-invoke (app request answer)
   "Run the command REQUEST names on a thread of its own, so a slow command
 never holds up the window, and ANSWER the page with its value or error.
 *APP* is APP while it runs, if the webview belongs to one."
   (handler-case
       (multiple-value-bind (name arguments) (command-request request)
-        (sb-thread:make-thread
-         (lambda ()
-           (handler-case
-               (let ((*command-caller* webview)
-                     (*app* (or app *app*)))
-                 (funcall answer (call-command name arguments)))
-             (serious-condition (c)
-               (funcall answer nil :error (princ-to-string c)))))
-         :name (format nil "cl-proteus command ~A" name)))
+        (let ((webview *webview*))
+          (sb-thread:make-thread
+           (lambda ()
+             (handler-case
+                 (let ((*command-caller* webview)
+                       (*app* (or app *app*)))
+                   (funcall answer (call-command name arguments)))
+               (serious-condition (c)
+                 (funcall answer nil :error (princ-to-string c)))))
+           :name (format nil "cl-proteus command ~A" name))))
     (serious-condition (c)
       (funcall answer nil :error (princ-to-string c)))))
 
@@ -110,12 +110,12 @@ never holds up the window, and ANSWER the page with its value or error.
   (and (hash-table-p message)
        (nth-value 1 (gethash "proteusEvent" message))))
 
-(defun receive-page-event (webview message)
+(defun receive-page-event (message)
   "A page emitted an event: tell the Lisp listeners and every page."
   (let ((event (gethash "proteusEvent" message))
         (payload (gethash "payload" message)))
     (when (stringp event)
-      (dispatch-event event payload :source webview)
+      (dispatch-event event payload :source *webview*)
       (emit-to-pages event payload))))
 
 (defun emit-to (webview event &optional payload)
@@ -153,8 +153,7 @@ to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
     (error "MAKE-APP-WEBVIEW answers invoke itself; define commands instead of :ON-INVOKE."))
   (when (and url html)
     (error "Give MAKE-APP-WEBVIEW a URL or HTML, not both."))
-  (let* ((box (list nil))
-         (options (loop for (key value) on options by #'cddr
+  (let* ((options (loop for (key value) on options by #'cddr
                         unless (member key '(:app :on-message :init-scripts :url :headers :html
                                              :base-url :invoke-async))
                           append (list key value)))
@@ -162,15 +161,14 @@ to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
            (apply #'make-webview window
                   :invoke-async t
                   :on-invoke (lambda (request answer)
-                               (answer-invoke (car box) app request answer))
+                               (answer-invoke app request answer))
                   :on-message (lambda (message)
                                 (if (page-event-p message)
-                                    (receive-page-event (car box) message)
+                                    (receive-page-event message)
                                     (when on-message (funcall on-message message))))
                   :init-scripts (cons *bridge-script* init-scripts)
                   options)))
-    ;; Known before any page can call: content is loaded only now.
-    (setf (car box) webview)
+    ;; Content is loaded only now, so every page finds the webview listed.
     (sb-thread:with-mutex (*app-webviews-lock*)
       (push webview *app-webviews*))
     (cond (url (load-url webview url :headers headers))
