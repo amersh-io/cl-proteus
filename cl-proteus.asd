@@ -33,9 +33,19 @@
                (:file "frontend")
                (:file "app")))
 
+(defsystem "cl-proteus/bundle"
+  :description "Building a signed macOS application bundle from an app."
+  :license "Apache-2.0"
+  :depends-on ("uiop" "sb-posix" "cl-proteus/core")
+  :pathname "src/bundle/"
+  :serial t
+  :components ((:file "package")
+               (:static-file "launcher.c")
+               (:file "bundle")))
+
 (defsystem "cl-proteus/test"
   :license "Apache-2.0"
-  :depends-on ("cl-proteus" "sb-posix")
+  :depends-on ("cl-proteus" "cl-proteus/bundle" "sb-posix")
   :pathname "test/"
   :serial t
   :components ((:file "package")
@@ -43,5 +53,6 @@
                (:file "shell")
                (:file "app")
                (:file "examples")
+               (:file "bundle")
                (:file "run"))
   :perform (test-op (o c) (symbol-call :cl-proteus/test :run!)))

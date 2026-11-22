@@ -1,0 +1,6 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>loading</title>
+<script>
+  proteus.invoke('bundle-facts').then(v => { document.title = 'bundled ' + v; });
+</script>
