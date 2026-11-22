@@ -17,21 +17,25 @@
   :pathname "src/core/"
   :serial t
   :components ((:file "package")
+               (:file "json")
                (:file "commands")
                (:file "events")
+               (:file "views")
                (:file "app")))
 
 (defsystem "cl-proteus/shell"
   :description "The windows and the page bridge, on cl-iris."
   :license "Apache-2.0"
-  :depends-on ("cl-iris" "cl-proteus/core")
+  :depends-on ("cl-iris" "cl-proteus/core" "sb-bsd-sockets" "sb-posix")
   :pathname "src/shell/"
   :serial t
   :components ((:file "package")
                (:file "json")
-               (:file "bridge")
                (:file "frontend")
-               (:file "app")))
+               (:file "bridge")
+               (:file "views")
+               (:file "app")
+               (:file "server")))
 
 (defsystem "cl-proteus/bundle"
   :description "Building a signed macOS application bundle from an app."
@@ -43,9 +47,18 @@
                (:static-file "launcher.c")
                (:file "bundle")))
 
+(defsystem "cl-proteus/client"
+  :description "Commands, events and views of an image without windows, shown by a shell."
+  :license "Apache-2.0"
+  :depends-on ("cl-proteus/core" "sb-bsd-sockets")
+  :pathname "src/client/"
+  :serial t
+  :components ((:file "package")
+               (:file "client")))
+
 (defsystem "cl-proteus/test"
   :license "Apache-2.0"
-  :depends-on ("cl-proteus" "cl-proteus/bundle" "sb-posix")
+  :depends-on ("cl-proteus" "cl-proteus/bundle" "cl-proteus/client" "sb-posix" "sb-bsd-sockets")
   :pathname "test/"
   :serial t
   :components ((:file "package")
@@ -54,5 +67,6 @@
                (:file "app")
                (:file "examples")
                (:file "bundle")
+               (:file "remote")
                (:file "run"))
   :perform (test-op (o c) (symbol-call :cl-proteus/test :run!)))

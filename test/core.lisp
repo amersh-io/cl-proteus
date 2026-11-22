@@ -160,7 +160,8 @@ without documentation."
     (sort missing #'string< :key #'symbol-name)))
 
 (defun documentation-checks ()
-  (dolist (package '(:cl-proteus/core :cl-proteus/shell :cl-proteus :cl-proteus/bundle))
+  (dolist (package '(:cl-proteus/core :cl-proteus/shell :cl-proteus :cl-proteus/bundle
+                     :cl-proteus/client))
     (let ((missing (undocumented-symbols package)))
       (check (format nil "every external symbol of ~(~A~) is documented" package)
              (or (null missing)

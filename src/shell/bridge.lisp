@@ -97,7 +97,7 @@ never holds up the window, and ANSWER the page with its value or error.
              (handler-case
                  (let ((*command-caller* webview)
                        (*app* (or app *app*)))
-                   (funcall answer (call-command name arguments)))
+                   (funcall answer (invoke-command name arguments)))
                (serious-condition (c)
                  (funcall answer nil :error (princ-to-string c)))))
            :name (format nil "cl-proteus command ~A" name))))
@@ -115,8 +115,7 @@ never holds up the window, and ANSWER the page with its value or error.
   (let ((event (gethash "proteusEvent" message))
         (payload (gethash "payload" message)))
     (when (stringp event)
-      (dispatch-event event payload :source *webview*)
-      (emit-to-pages event payload))))
+      (relay-event event payload :source *webview*))))
 
 (defun emit-to (webview event &optional payload)
   "Send the event EVENT with PAYLOAD to the page in WEBVIEW only."
@@ -139,6 +138,7 @@ never holds up the window, and ANSWER the page with its value or error.
 
 (defun make-app-webview (window &rest options
                          &key app on-message init-scripts url headers html (base-url "about:blank")
+                           view frontend protocols
                          &allow-other-keys)
   "Make a webview in WINDOW, as cl-iris's MAKE-WEBVIEW does with OPTIONS,
 whose pages get window.proteus: invoke for commands, emit, listen and once
@@ -146,16 +146,21 @@ for events.
 
 Commands run on threads of their own, with *COMMAND-CALLER* bound to this
 webview and *APP* to APP, if given; an error rejects the page's Promise with
-its message. ON-MESSAGE
-still hears iris.post values that are not proteus events. ON-INVOKE belongs
-to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
+its message. A command a connected client registered runs in that client.
+ON-MESSAGE still hears iris.post values that are not proteus events.
+ON-INVOKE belongs to the bridge and cannot be given; INIT-SCRIPTS run after
+the bridge's.
+
+The webview serves *SCHEME*: views at proteus://view/NAME/ and, if FRONTEND
+is a directory, its files at proteus://app/ -- unless PROTOCOLS already
+names that scheme. VIEW, a view name, is shown in place of URL or HTML."
   (when (getf options :on-invoke)
     (error "MAKE-APP-WEBVIEW answers invoke itself; define commands instead of :ON-INVOKE."))
-  (when (and url html)
-    (error "Give MAKE-APP-WEBVIEW a URL or HTML, not both."))
+  (when (< 1 (count-if #'identity (list url html view)))
+    (error "Give MAKE-APP-WEBVIEW one of a URL, HTML or a VIEW."))
   (let* ((options (loop for (key value) on options by #'cddr
                         unless (member key '(:app :on-message :init-scripts :url :headers :html
-                                             :base-url :invoke-async))
+                                             :base-url :invoke-async :view :frontend :protocols))
                           append (list key value)))
          (webview
            (apply #'make-webview window
@@ -167,12 +172,16 @@ to the bridge and cannot be given; INIT-SCRIPTS run after the bridge's."
                                     (receive-page-event message)
                                     (when on-message (funcall on-message message))))
                   :init-scripts (cons *bridge-script* init-scripts)
+                  :protocols (if (assoc *scheme* protocols :test #'string-equal)
+                                 protocols
+                                 (append protocols (list (list *scheme* (scheme-handler frontend)))))
                   options)))
     ;; Content is loaded only now, so every page finds the webview listed.
     (sb-thread:with-mutex (*app-webviews-lock*)
       (push webview *app-webviews*))
     (cond (url (load-url webview url :headers headers))
-          (html (load-html webview html :base-url base-url)))
+          (html (load-html webview html :base-url base-url))
+          (view (show-view webview view)))
     webview))
 
 (defun destroy-app-webview (webview)

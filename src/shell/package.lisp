@@ -18,4 +18,19 @@
            #:app-running-p
            #:app-window
            #:app-webview
-           #:refresh-app))
+           #:refresh-app
+           #:scheme-handler
+           #:view-url
+           #:show-view
+           #:serve-shell
+           #:stop-shell
+           #:shell-server
+           #:shell-server-path
+           #:shell-clients
+           #:connection
+           #:connection-id
+           #:connection-name
+           #:connection-open-p
+           #:remote-commands
+           #:invoke-command
+           #:*protocol-version*))

@@ -27,7 +27,7 @@ RUN-APP when it is the only one running. APP-STATE uses it by default.")
 are served from, under proteus://app/, or NIL.")
    (windows :initarg :windows :initform '() :accessor app-windows
             :documentation "Window specifications: lists (ID . OPTIONS), where
-OPTIONS are MAKE-WINDOW's and :PAGE, :URL or :HTML for the webview.")
+OPTIONS are MAKE-WINDOW's and :PAGE, :VIEW, :URL or :HTML for the webview.")
    (state :initform (make-hash-table :test 'equal) :reader app-state-table
           :documentation "The state commands share, by key.")
    (lock :initform (sb-thread:make-mutex :name "cl-proteus app state") :reader app-lock
@@ -99,7 +99,7 @@ keys the app has no value for yet, so a running app keeps its state. Calls
 (:FRONTEND dir) serves the files in DIR at proteus://app/; a relative DIR is
 taken from the directory of the source file the form is in. Each (:WINDOW id . options) is a window:
 MAKE-WINDOW's options, and for its page :PAGE (a path under the front end),
-:URL or :HTML. (:STATE key value ...) gives the state's initial values.
+:VIEW (a view's name), :URL or :HTML. (:STATE key value ...) gives the state's initial values.
 
 Evaluating the form again updates the app; RUN-APP applies the change to
 windows already open."

@@ -13,6 +13,11 @@
 
 (defvar *commands-lock* (sb-thread:make-mutex :name "cl-proteus commands"))
 
+(defvar *commands-changed-hook* '()
+  "Functions of (NAME COMMAND) called after the command NAME is registered,
+with the new COMMAND, or unregistered, with NIL. A client uses it to keep the
+shell's list of its commands current.")
+
 (defstruct (command (:constructor make-command (name function parameters documentation)))
   "A registered command: NAME as pages call it, the FUNCTION it calls (a
 symbol, so redefining the function changes the command), and the names of
@@ -63,13 +68,22 @@ replaces the command. Returns NAME."
                                (mapcar #'js-name parameters)
                                documentation)))
     (sb-thread:with-mutex (*commands-lock*)
-      (setf (gethash name *commands*) command)))
+      (setf (gethash name *commands*) command))
+    (commands-changed name command))
   name)
+
+(defun commands-changed (name command)
+  (dolist (function *commands-changed-hook*)
+    (handler-case (funcall function name command)
+      (serious-condition (c)
+        (format *error-output* "~&;; cl-proteus: error in a commands hook: ~A~%" c)))))
 
 (defun unregister-command (name)
   "Forget the command NAME. Returns true if there was one."
-  (sb-thread:with-mutex (*commands-lock*)
-    (remhash name *commands*)))
+  (let ((removed (sb-thread:with-mutex (*commands-lock*)
+                   (remhash name *commands*))))
+    (when removed (commands-changed name nil))
+    removed))
 
 (defun find-command (name)
   "The registered command NAME, or NIL."

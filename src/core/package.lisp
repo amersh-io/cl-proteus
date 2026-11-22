@@ -21,6 +21,20 @@
            #:command-error-message
            #:js-name
            #:*commands*
+           #:*commands-changed-hook*
+           #:view
+           #:view-name
+           #:view-files
+           #:view-file
+           #:define-view
+           #:ensure-view
+           #:find-view
+           #:list-views
+           #:*views-changed-hook*
+           #:write-json
+           #:read-json
+           #:json-error
+           #:json-error-message
            #:listen-event
            #:listen-event-once
            #:unlisten-event

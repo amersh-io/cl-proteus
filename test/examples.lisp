@@ -73,3 +73,66 @@ loadable; return its output and exit code."
                           (progn (format t "~&;; ~A example, exit code ~A, output:~%~A~%"
                                          name code (last-lines output 40))
                                  nil)))))))
+
+;;; The remote example: a shell in one child Lisp, its agent in another.
+
+(defparameter *remote-example-driver* "
+(sb-thread:make-thread
+ (lambda ()
+   (loop until (and (cl-iris:application-running-p) (cl-proteus:app-webviews))
+         repeat 200 do (sleep 0.05))
+   (let ((agent nil))
+     (unwind-protect
+          (handler-case
+              (let ((webview (first (cl-proteus:app-webviews)))
+                    (root (asdf:system-source-directory \"cl-proteus\")))
+                (flet ((title () (cl-iris:eval-js webview \"document.title\" :timeout 5)))
+                  (loop repeat 100 until (search \"Waiting\" (title)) do (sleep 0.1))
+                  (format t \"~&EXAMPLE-BEFORE ~A~%\" (title))
+                  (setf agent (sb-ext:run-program
+                               sb-ext:*runtime-pathname*
+                               (list \"--noinform\" \"--non-interactive\" \"--no-userinit\"
+                                     \"--load\" (namestring (merge-pathnames \".qlot/setup.lisp\" root))
+                                     \"--eval\" \"(pushnew :cl-proteus-example-test *features*)\"
+                                     \"--load\" (namestring (merge-pathnames \"examples/remote/agent.lisp\" root))
+                                     \"--eval\" (format nil \"(cl-proteus.examples.remote-agent:main :path ~S)\" cl-user::*socket*)
+                                     \"--eval\" \"(loop repeat 600 while (cl-proteus/client:shell-connected-p) do (sleep 0.1))\")
+                               :directory root :output nil :error nil :wait nil))
+                  (loop repeat 600 until (search \"Agent\" (title)) do (sleep 0.1))
+                  (format t \"~&EXAMPLE-AFTER ~A~%\" (title))
+                  ;; The page may still be loading again: look up elements each time.
+                  (flet ((result () (cl-iris:eval-js webview \"(document.getElementById('result') || {}).textContent || ''\")))
+                    (loop repeat 100 until (eql t (cl-iris:eval-js webview \"!!document.getElementById('roll')\"))
+                          do (sleep 0.1))
+                    (cl-iris:eval-js webview \"(document.getElementById('roll') || {click() {}}).click(); 0\")
+                    (loop repeat 100 until (plusp (length (result))) do (sleep 0.1))
+                    (format t \"~&EXAMPLE-TITLE ~A rolled ~A~%\" (title) (result)))))
+            (error (e) (format t \"~&EXAMPLE-ERROR ~A~%\" e)))
+       (when (and agent (sb-ext:process-alive-p agent)) (sb-ext:process-kill agent 9))
+       (cl-proteus:stop-app)))))")
+
+(defun remote-example-checks ()
+  (let ((name "the remote example shows the agent's view and runs its command"))
+    (when (selected-p name)
+      (let ((socket (format nil "/tmp/cl-proteus-test-~D-example.sock" (sb-posix:getpid)))
+            (file (namestring (merge-pathnames "examples/remote/shell.lisp"
+                                               (asdf:system-source-directory "cl-proteus")))))
+        (multiple-value-bind (output code)
+            (run-child-lisp "(pushnew :cl-proteus-example-test *features*)"
+                            (format nil "(load ~S)" file)
+                            "(setf cl-iris:*window-defaults* '(:alpha 0 :activate nil))"
+                            (format nil "(defparameter cl-user::*socket* ~S)" socket)
+                            *remote-example-driver*
+                            (format nil "(cl-proteus.examples.remote-shell:main :path ~S :activation-policy :accessory)" socket)
+                            "(format t \"~&EXAMPLE-DONE~%\")")
+          (check name
+                 (or (and (eql 0 code)
+                          (search "EXAMPLE-DONE" output)
+                          (search "EXAMPLE-BEFORE Waiting for an agent" output)
+                          (not (search "EXAMPLE-ERROR" output))
+                          (not (search ";; cl-proteus: error" output))
+                          (let ((line (search "EXAMPLE-TITLE Agent connected rolled " output)))
+                            (and line (digit-char-p (char output (+ line (length "EXAMPLE-TITLE Agent connected rolled ")))))))
+                     (progn (format t "~&;; remote example, exit code ~A, output:~%~A~%"
+                                    code (last-lines output 40))
+                            nil))))))))

@@ -16,15 +16,16 @@
 WINDOW and WEBVIEW."
   id spec window webview)
 
-(defparameter *page-keys* '(:page :url :html)
+(defparameter *page-keys* '(:page :url :html :view)
   "The keys of a window spec that say what its webview shows.")
 
 (defun page-url (spec)
-  "The proteus:// URL of SPEC's :PAGE, or its :URL."
-  (let ((page (getf (rest spec) :page)))
-    (if page
-        (format nil "~A://app/~A" *scheme* (string-left-trim "/" page))
-        (getf (rest spec) :url))))
+  "The proteus:// URL of SPEC's :PAGE or :VIEW, or its :URL."
+  (let ((page (getf (rest spec) :page))
+        (view (getf (rest spec) :view)))
+    (cond (page (format nil "~A://app/~A" *scheme* (string-left-trim "/" page)))
+          (view (view-url view))
+          (t (getf (rest spec) :url)))))
 
 (defun window-options (spec)
   "MAKE-WINDOW's options in SPEC."
@@ -39,8 +40,7 @@ WINDOW and WEBVIEW."
          (url (unless html (page-url spec)))
          (webview (apply #'make-app-webview window
                          :app app
-                         :protocols (when (app-frontend app)
-                                      (list (list *scheme* (frontend-handler (app-frontend app)))))
+                         :frontend (app-frontend app)
                          (cond (html (list :html html))
                                (url (list :url url))))))
     (sb-thread:with-recursive-lock (*open-windows-lock*)
