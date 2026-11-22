@@ -240,11 +240,38 @@ MANIFEST."
       (truename entitlements)))
 
 (defun sign (path identity &rest options)
-  (apply #'run (format nil "Signing ~A" (file-namestring (string-right-trim "/" (namestring path))))
-         "/usr/bin/codesign" "--force" "--sign" identity "--options" "runtime"
-         (append (unless (string= identity "-") (list "--timestamp"))
-                 options
-                 (list (string-right-trim "/" (namestring path))))))
+  (flet ((attempt ()
+           (apply #'run (format nil "Signing ~A" (file-namestring (string-right-trim "/" (namestring path))))
+                  "/usr/bin/codesign" "--force" "--sign" identity "--options" "runtime"
+                  (append (unless (string= identity "-") (list "--timestamp"))
+                          options
+                          (list (string-right-trim "/" (namestring path)))))))
+    (if (string= identity "-")
+        (attempt)
+        ;; Apple's timestamp server now and then answers with a time codesign
+        ;; refuses; it passes on a later try.
+        (loop for tries from 1
+              do (handler-case (return (attempt))
+                   (bundle-error (e)
+                     (when (= tries 3) (error e))
+                     (sleep 5)))))))
+
+(defun notarize (app profile)
+  "Submit APP to Apple's notary service with the notarytool keychain PROFILE,
+wait for its verdict, staple the ticket to APP and check it with Gatekeeper."
+  (let ((bundle (string-right-trim "/" (namestring app))))
+    (uiop:with-temporary-file (:pathname zip :type "zip" :prefix "cl-proteus-notarize")
+      (run "Archiving for notarization" "/usr/bin/ditto" "-c" "-k" "--keepParent"
+           bundle (namestring zip))
+      (let ((output (run "Notarizing" "/usr/bin/xcrun" "notarytool" "submit" (namestring zip)
+                         "--keychain-profile" profile "--wait")))
+        (unless (search "status: Accepted" output)
+          (error 'bundle-error
+                 :message (format nil "The notary service did not accept the bundle; ~
+xcrun notarytool log <id> --keychain-profile ~A says why." profile)
+                 :output output))))
+    (run "Stapling" "/usr/bin/xcrun" "stapler" "staple" bundle)
+    (run "Checking with Gatekeeper" "/usr/sbin/spctl" "--assess" "--type" "execute" bundle)))
 
 ;;; The bundle
 
@@ -260,7 +287,7 @@ case letters, digits and -."
 
 (defun bundle-app (app &key system load (output-directory (uiop:getcwd)) name identifier
                          (version "0.1.0") icon info (entitlements *entitlements*)
-                         (identity "-") run-options)
+                         (identity "-") notary-profile run-options)
   "Build NAME.app in OUTPUT-DIRECTORY from APP, an application or the name
 of one defined with DEFINE-APP, and return its pathname. The name may be a
 string, read once the application is loaded, such as \"my-app::notes\", for
@@ -281,8 +308,14 @@ it from there when run from the bundle.
 
 The bundle is signed with IDENTITY, a codesign identity, \"-\" (the default)
 for an ad-hoc signature, under the hardened runtime; the Lisp runtime gets
-ENTITLEMENTS, a list of entitlement keys or a property list file. An
-existing NAME.app is replaced."
+ENTITLEMENTS, a list of entitlement keys or a property list file.
+
+With NOTARY-PROFILE, the name of a keychain profile made with xcrun
+notarytool store-credentials, the signed bundle is then notarized: sent to
+Apple, waited for, stapled and checked with Gatekeeper. It needs a
+Developer ID IDENTITY.
+
+An existing NAME.app is replaced."
   (let* ((app-name (if (typep app 'app) (app-name app) app))
          (executable (executable-name app-name))
          (output (uiop:ensure-directory-pathname (merge-pathnames output-directory)))
@@ -292,6 +325,8 @@ existing NAME.app is replaced."
          (resources (merge-pathnames "Resources/" contents)))
     (unless (or system load)
       (error "BUNDLE-APP needs a :SYSTEM or files to :LOAD that define ~S." app-name))
+    (when (and notary-profile (string= identity "-"))
+      (error "BUNDLE-APP can notarize only a bundle signed with a Developer ID :IDENTITY."))
     (uiop:delete-directory-tree staging :validate t :if-does-not-exist :ignore)
     (ensure-directories-exist macos)
     (ensure-directories-exist resources)
@@ -330,6 +365,8 @@ existing NAME.app is replaced."
           (uiop:delete-directory-tree final :validate t :if-does-not-exist :ignore)
           (sb-posix:rename (string-right-trim "/" (namestring staging))
                            (string-right-trim "/" (namestring final)))
+          (when notary-profile
+            (notarize final notary-profile))
           final)))))
 
 ;;; From a shell

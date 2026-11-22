@@ -1,6 +1,8 @@
 ;;;; Building an application bundle: a test app is bundled, signed, checked
 ;;;; and run from its bundle, out of sight. CL_PROTEUS_TEST_SKIP_BUNDLE=1
-;;;; skips the build, which takes a while.
+;;;; skips the build, which takes a while. CL_PROTEUS_TEST_IDENTITY signs it
+;;;; with that codesign identity instead of ad hoc, and with it
+;;;; CL_PROTEUS_TEST_NOTARY_PROFILE notarizes it too.
 
 (in-package #:cl-proteus/test)
 
@@ -31,7 +33,12 @@
                                                       :ignore-error-status t))))))
   (check "bundle-app wants a system or files that define the app"
          (handler-case (progn (cl-proteus/bundle:bundle-app 'notes) nil)
-           (error () t))))
+           (error () t)))
+  (check "bundle-app notarizes only a bundle signed with an identity"
+         (handler-case (progn (cl-proteus/bundle:bundle-app 'notes :load "notes.lisp"
+                                                                   :notary-profile "notary")
+                              nil)
+           (error (e) (search "Developer ID" (princ-to-string e))))))
 
 (defun program-output (&rest command)
   "What COMMAND printed, and its exit code."
@@ -82,7 +89,13 @@
                         (not (search "BUNDLE-ERROR" output)))
                    (progn (format t "~&;; bundled app, exit code ~A, output:~%~A~%"
                                   code (last-lines output 40))
-                          nil)))))))
+                          nil))))
+      (when (sb-ext:posix-getenv "CL_PROTEUS_TEST_NOTARY_PROFILE")
+        (check "a notarized bundle carries its ticket and passes Gatekeeper"
+               (and (eql 0 (nth-value 1 (program-output "/usr/bin/xcrun" "stapler" "validate"
+                                                        bundle)))
+                    (eql 0 (nth-value 1 (program-output "/usr/sbin/spctl" "--assess"
+                                                        "--type" "execute" bundle)))))))))
 
 (defparameter *built-bundle-checks*
   '("bundle-app builds the test app"
@@ -107,6 +120,9 @@
                                     "cl-proteus" "test/bundle-app/app.lisp")
                              :output-directory output
                              :identifier *bundle-identifier*
+                             :identity (or (sb-ext:posix-getenv "CL_PROTEUS_TEST_IDENTITY") "-")
+                             :notary-profile (sb-ext:posix-getenv
+                                              "CL_PROTEUS_TEST_NOTARY_PROFILE")
                              ;; No Dock icon and no focus taken while it runs.
                              :run-options '(:activation-policy :accessory))
                           (error (e)

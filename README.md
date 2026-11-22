@@ -126,7 +126,10 @@ or, from a shell, `scripts/bundle <app> <file.lisp | system> [:option value]...`
 - The bundle is signed under the hardened runtime, ad hoc unless
   `:identity` names a signing identity. SBCL runs code it compiles into
   memory, so its runtime gets the one entitlement that allows that
-  (`*entitlements*`). Notarizing is left to `xcrun notarytool`.
+  (`*entitlements*`).
+- `:notary-profile` notarizes a bundle signed with a Developer ID: it is
+  sent to Apple, waited for, stapled and checked with Gatekeeper. The
+  profile is one made once with `xcrun notarytool store-credentials`.
 
 ```
 Front end.app/Contents/

@@ -40,6 +40,8 @@ change the API. No version has been released yet.
   shell.
 - The runtime and the image are kept apart, started by a small launcher, so
   that `codesign --verify --deep --strict` passes.
+- `:notary-profile` notarizes a bundle signed with a Developer ID and
+  staples the ticket; signing with a timestamp is tried up to three times.
 - Examples skip running their app when loaded for a bundle
   (`:cl-proteus-bundle`).
 
