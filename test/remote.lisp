@@ -129,6 +129,13 @@ b")))))
 
 ;;; A page and a child image
 
+(defun noted (value control &rest arguments)
+  "VALUE; when it is false, say why with CONTROL and ARGUMENTS, so a failing
+check shows which part of it failed."
+  (unless value
+    (format t "~&;; ~?~%" control arguments))
+  value)
+
 (defun start-client (path log)
   "Start the test client image, connecting to PATH, with its output in LOG."
   (let ((root (asdf:system-source-directory "cl-proteus")))
@@ -217,9 +224,19 @@ b")))))
                     (check "the next client registers again and the same page invokes it"
                            (progn
                              (push (start-client path log) clients)
-                             (and (wait-until (lambda () (client-registered-p "remote-add")) :timeout 60)
-                                  (equal "ok:5" (page-value webview "window.result = proteus.invoke('remote-add', {a: 2, b: 3})"))
-                                  (not (window-closed-p window)))))
+                             (and (noted (wait-until (lambda () (client-registered-p "remote-add")) :timeout 60)
+                                         "the next client did not register within 60 s")
+                                  ;; The new client sends its view (v1) after its commands, and the
+                                  ;; page showing v2 is loaded again when it arrives: an invoke made
+                                  ;; in between dies with the old page.
+                                  (noted (wait-until (lambda () (equal "v1" (eval-js webview "document.title"))))
+                                         "the page did not show the next client's view; its title is ~S"
+                                         (ignore-errors (eval-js webview "document.title")))
+                                  (let ((outcome (page-value webview "window.result = proteus.invoke('remote-add', {a: 2, b: 3})")))
+                                    (noted (equal "ok:5" outcome)
+                                           "the invoke gave ~S (\"\" is no outcome in 10 s); the page's title is ~S"
+                                           outcome (ignore-errors (eval-js webview "document.title"))))
+                                  (noted (not (window-closed-p window)) "the window closed"))))
                     (check "an answer for a webview destroyed meanwhile does no harm"
                            (let ((doomed (make-app-webview window :html "<title>doomed</title>")))
                              (wait-until (lambda () (equal "doomed" (eval-js doomed "document.title"))))
