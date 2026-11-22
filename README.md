@@ -235,7 +235,6 @@ qlot exec sbcl --load examples/hello.lisp
 
 ## Roadmap
 
-- A first release.
 - A shell that restarts its client image when it dies.
 
 ## Development
@@ -249,6 +248,16 @@ scripts/check-spec   # the Quint model's tests (needs quint)
 Test windows are transparent so a run does not flash on the screen;
 `CL_PROTEUS_TEST_VISIBLE=1` shows them. Changes are listed in
 [CHANGELOG.md](CHANGELOG.md).
+
+## Versions
+
+Releases are tagged `vX.Y.Z` and follow semantic versioning; until 1.0 a
+minor release may change the API. See [CHANGELOG.md](CHANGELOG.md). To
+depend on a release with qlot:
+
+```
+git cl-proteus https://github.com/amersh-io/cl-proteus.git :tag v0.1.0
+```
 
 ## License
 

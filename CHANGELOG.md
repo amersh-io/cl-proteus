@@ -2,9 +2,12 @@
 
 All notable changes to cl-proteus are listed here. The project follows
 [Semantic Versioning](https://semver.org/); until 1.0, a minor release may
-change the API. No version has been released yet.
+change the API.
 
-## Unreleased
+## 0.1.0 — 2026-11-22
+
+The first release: a Tauri-style application framework on cl-iris, for
+SBCL on macOS (Apple silicon).
 
 ### Commands
 

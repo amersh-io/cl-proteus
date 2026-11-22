@@ -3,7 +3,7 @@
 (defsystem "cl-proteus"
   :description "A Tauri-style application framework for Common Lisp, on cl-iris."
   :license "Apache-2.0"
-  :version "0.0.1"
+  :version "0.1.0"
   :homepage "https://github.com/amersh-io/cl-proteus"
   :depends-on ("cl-proteus/core" "cl-proteus/shell")
   :pathname "src/"
