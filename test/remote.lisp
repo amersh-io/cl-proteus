@@ -58,12 +58,12 @@ b")))))
                       "proteus://app/index.html"))))
     (check "a window spec's :view is the view's URL"
            (equal "proteus://view/notes/" (cl-proteus/shell::page-url '(main :view notes))))
-    (check "defining a view again unchanged still calls the views hook (pinned)"
+    (check "defining a view again unchanged does not call the views hook"
            (let* ((heard 0)
                   (*views-changed-hook* (list (lambda (view) (declare (ignore view)) (incf heard)))))
              (ensure-view "test-view" :files '("index.html" "<title>t</title>"
                                                "css/site.css" "body{}"))
-             (= 1 heard)))
+             (= 0 heard)))
     (check "the views hook hears a definition"
            (let* ((heard nil)
                   (*views-changed-hook* (list (lambda (view) (setf heard (view-name view))))))
@@ -243,7 +243,7 @@ check shows which part of it failed."
                                            "the invoke gave ~S (\"\" is no outcome in 10 s); the page's title is ~S"
                                            outcome (ignore-errors (eval-js webview "document.title"))))
                                   (noted (not (window-closed-p window)) "the window closed"))))
-                    (check "a client that connects again with the same view reloads the page (pinned)"
+                    (check "a client that connects again with the same view leaves the page as it is"
                            (progn
                              (eval-js webview "window.marker = 2; 0")
                              (stop-client (first clients))
@@ -253,8 +253,8 @@ check shows which part of it failed."
                                          "the client did not register within 60 s")
                                   ;; Its view comes right after its commands.
                                   (progn (sleep 1) t)
-                                  (noted (eql :null (eval-js webview "window.marker === 2 ? 2 : null"))
-                                         "the page kept its state"))))
+                                  (noted (eql 2 (eval-js webview "window.marker === 2 ? 2 : null"))
+                                         "the page was loaded again"))))
                     (check "an answer for a webview destroyed meanwhile does no harm"
                            (let ((doomed (make-app-webview window :html "<title>doomed</title>")))
                              (wait-until (lambda () (equal "doomed" (eval-js doomed "document.title"))))

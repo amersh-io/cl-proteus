@@ -158,7 +158,8 @@ served at `proteus://view/NAME/`:
 ```
 
 Evaluating `define-view` again replaces the files, and every page showing
-the view is loaded again in its window. `show-view` loads one in a webview;
+the view is loaded again in its window -- unless the files are the same,
+so a client that connects again leaves pages as they are. `show-view` loads one in a webview;
 a window spec takes `:view`.
 
 ## Remote images

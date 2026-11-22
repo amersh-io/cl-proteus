@@ -48,7 +48,8 @@ change the API. No version has been released yet.
 ### Views and remote images
 
 - `define-view` keeps a small front end in the image, served at
-  `proteus://view/NAME/`; defining it again reloads every page showing it.
+  `proteus://view/NAME/`; defining it again with other files reloads every
+  page showing it.
   `show-view`, and `:view` in a window spec.
 - `serve-shell` listens on a Unix-domain socket (`0600`, in a `0700`
   directory it makes); `cl-proteus/client`'s `connect-shell` connects an

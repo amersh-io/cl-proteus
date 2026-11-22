@@ -1,8 +1,9 @@
 ;;;; Serving views, and swapping them while pages show them.
 ;;;;
 ;;;; proteus://view/NAME/PATH is the file PATH of the view NAME, from memory.
-;;;; Every app webview serves views; when a view is defined again -- in this
-;;;; image or by a client -- every page showing it is loaded again.
+;;;; Every app webview serves views; when a view is defined again with other
+;;;; files -- in this image or by a client -- every page showing it is loaded
+;;;; again.
 
 (in-package #:cl-proteus/shell)
 

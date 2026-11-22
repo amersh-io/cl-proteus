@@ -25,7 +25,7 @@ register commands that pages call.
 | `hello` | `protocol` (1), `name` (string or null) | Sent first. The shell answers `welcome`. `name` shows in `connection-name`. |
 | `command` | `name`, `parameters` (array of argument names) | Register, or register again, a command this client runs. |
 | `uncommand` | `name` | Forget a command this client registered. |
-| `view` | `name`, `files` (object: relative path to base64 contents) | Define a view, or replace its files. Pages showing it are loaded again. |
+| `view` | `name`, `files` (object: relative path to base64 contents) | Define a view, or replace its files. If they changed, pages showing it are loaded again. |
 | `emit` | `event`, `payload` | An event: the shell's Lisp listeners, every page and every other client get it. |
 | `result` | `id`, `value` | The value of the invoke `id`. |
 | `error` | `id`, `message` | The invoke `id` failed; the page's Promise is rejected with `message`. |
@@ -56,6 +56,7 @@ register commands that pages call.
    the windows.
 5. A new client -- a new generation of the same image, say -- connects and
    registers again (1). Pages that were open keep working; a page showing a
-   view the new client defines again is loaded again.
+   view the new client sends with other files is loaded again, and one
+   whose view comes back unchanged keeps its state.
 
 `spec/invoke-lifecycle.qnt` models steps 2 to 5.

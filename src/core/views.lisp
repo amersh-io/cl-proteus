@@ -3,8 +3,8 @@
 ;;;; A view is a small front end -- index.html and whatever it loads -- kept
 ;;;; as octets in Lisp rather than in a directory. The shell serves it at
 ;;;; proteus://view/NAME/ and reloads every page showing it when it is
-;;;; defined again; a client sends its views to the shell, so an image with
-;;;; no window can still change the screens a shell shows.
+;;;; defined again with other files; a client sends its views to the shell,
+;;;; so an image with no window can still change the screens a shell shows.
 
 (in-package #:cl-proteus/core)
 
@@ -14,8 +14,9 @@
 (defvar *views-lock* (sb-thread:make-mutex :name "cl-proteus views"))
 
 (defvar *views-changed-hook* '()
-  "Functions of one argument, a VIEW, called after it is defined or defined
-again. The shell reloads the pages showing it; a client sends it on.")
+  "Functions of one argument, a VIEW, called after it is defined, or defined
+again with other files. The shell reloads the pages showing it; a client
+sends it on.")
 
 (defstruct (view (:constructor make-view (name files)))
   "A view: its NAME, a string, and its FILES, an alist from relative paths
@@ -72,7 +73,8 @@ in /, names its index.html."
 replace its files: FILES is a plist or alist of relative paths and contents
 (strings, written as UTF-8, octet vectors or pathnames), DIRECTORY a
 directory whose files are read now. FILES are added after DIRECTORY's and
-win over them. Calls *VIEWS-CHANGED-HOOK*. Returns the view."
+win over them. Calls *VIEWS-CHANGED-HOOK* if the files changed; the same
+files again leave the view as it is. Returns the view."
   (let* ((name (view-name-string name))
          (pairs (if (and files (consp (first files)))
                     files
@@ -86,6 +88,11 @@ win over them. Calls *VIEWS-CHANGED-HOOK*. Returns the view."
     (when (find #\/ name)
       (error "A view name cannot hold a /: ~S." name))
     (sb-thread:with-mutex (*views-lock*)
+      (let ((old (gethash name *views*)))
+        ;; The same files again change nothing: pages showing the view keep
+        ;; their state, as when a client connects again with the same views.
+        (when (and old (equalp (view-files old) (view-files view)))
+          (return-from ensure-view old)))
       (setf (gethash name *views*) view))
     (dolist (function *views-changed-hook*)
       (handler-case (funcall function view)
@@ -105,7 +112,7 @@ win over them. Calls *VIEWS-CHANGED-HOOK*. Returns the view."
 OPTIONS are ENSURE-VIEW's, evaluated, except that a :FILES list written out
 as paths and contents is taken as a list of them: its contents are
 evaluated. Evaluating the form again replaces the files, and every page
-showing the view reloads."
+showing the view reloads if they changed."
   `(ensure-view ',name
                 ,@(loop for (key value) on options by #'cddr
                         collect key
