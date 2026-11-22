@@ -4,5 +4,5 @@
   :version "2026-01-01"))
 ("cl-iris" .
  (:class qlot/source/git:source-git
-  :initargs (:remote-url "https://github.com/amersh-io/cl-iris.git" :tag "v0.1.0")
-  :version "git-8f5b69a54cda2dbe2c517642eac9c60e776a7b2f"))
+  :initargs (:remote-url "https://github.com/amersh-io/cl-iris.git" :tag "v0.2.0")
+  :version "git-30f66156685eddc7a9ffdd75d2eaccca001ea420"))

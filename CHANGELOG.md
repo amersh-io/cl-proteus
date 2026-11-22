@@ -36,4 +36,4 @@ change the API. No version has been released yet.
 - Examples in `examples/`, each run by the test suite in a child Lisp.
 - A check that every external symbol is documented.
 - Tests keep their windows transparent; CI on macOS.
-- Depends on cl-iris 0.1.0.
+- Depends on cl-iris 0.2.0.
