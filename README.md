@@ -6,8 +6,7 @@ for the interface, and Lisp behind them, all in one SBCL process that you
 can change from the REPL while it runs.
 
 > **Status:** early. Commands, events, applications, a served front end,
-> shared state and signed `.app` bundles work; a socket transport is still
-> to come.
+> shared state, signed `.app` bundles and remote images over a socket work.
 > cl-proteus is an independent project, not affiliated with Tauri.
 
 ```lisp
@@ -85,7 +84,7 @@ directory and the state its commands share; `run-app` shows it.
 ```
 
 - A window takes `make-window`'s options and, for its page, `:page` (a path
-  under the front end), `:url` or `:html`.
+  under the front end), `:view` (a view's name), `:url` or `:html`.
 - The front end is served at `proteus://app/`: content types by extension,
   `index.html` for a directory path, and nothing outside the directory —
   `..` segments are refused even when escaped, and symbolic links that lead
@@ -145,17 +144,67 @@ cover a core appended to an executable, which is how `save-lisp-and-die`
 makes one; the launcher starts the runtime with the core whatever
 `SBCL_HOME` says. Building it needs a C compiler (`xcode-select --install`).
 
+## Views
+
+A view is a small front end kept in the image instead of a directory,
+served at `proteus://view/NAME/`:
+
+```lisp
+(define-view notes
+  :files ("index.html" "<!doctype html><title>Notes</title><script src=app.js></script>"
+          "app.js" "proteus.invoke('list-notes').then(...)"))
+
+(define-view settings :directory "ui/settings/")   ; files read now
+```
+
+Evaluating `define-view` again replaces the files, and every page showing
+the view is loaded again in its window. `show-view` loads one in a webview;
+a window spec takes `:view`.
+
+## Remote images
+
+The windows can live in one process and everything else in another. The
+shell runs `serve-shell` on a Unix-domain socket; an image that loads only
+`cl-proteus/client` -- no cl-iris, no Cocoa, so it can fork or
+`save-lisp-and-die` freely -- connects to it:
+
+```lisp
+;; The shell
+(serve-shell "/tmp/my-app/shell.sock")
+(run-app 'my-shell)                      ; its window shows :view "home"
+
+;; The other image
+(asdf:load-system "cl-proteus/client")
+(define-command roll (sides) (1+ (random sides)))
+(define-view home :files ("index.html" "..."))
+(connect-shell "/tmp/my-app/shell.sock")
+```
+
+- The client's commands and views are registered on connecting, and any
+  defined or changed later are sent at once; a page's `proteus.invoke` of
+  one of its commands runs in the client.
+- `emit` in the client reaches the shell's pages and Lisp listeners;
+  events from pages and from the shell's Lisp reach the client's listeners.
+- When the client goes away, its commands go with it and the invokes it
+  had not answered are rejected, each once. The windows stay; the next
+  client -- the image's next generation -- registers again and the same
+  pages carry on.
+- The socket and its directory are this user's only. The protocol is
+  newline-separated JSON, described in [docs/protocol.md](docs/protocol.md)
+  and modelled in [spec/](spec/).
+
 ## Systems
 
 | System | What it holds |
 |---|---|
-| `cl-proteus/core` | commands, events, applications and their state; does not load cl-iris or Cocoa |
-| `cl-proteus/shell` | the page bridge, the front-end server and `run-app`, on cl-iris |
+| `cl-proteus/core` | commands, events, views, applications and their state, JSON; does not load cl-iris or Cocoa |
+| `cl-proteus/shell` | the page bridge, the front-end and view server, `run-app` and the socket server, on cl-iris |
 | `cl-proteus` | both, and the `cl-proteus` package that re-exports them |
+| `cl-proteus/client` | connecting an image without windows to a shell; core only |
 | `cl-proteus/bundle` | building a signed `.app`; loaded where you build, not in the app |
 
-The core stays free of Cocoa so that a process which only defines an
-application can load it without AppKit and, later, talk to a separate shell
+The core stays free of Cocoa so that a process which only defines
+commands and views can load it without AppKit and talk to a separate shell
 process that owns the windows.
 
 ## Going below
@@ -177,6 +226,7 @@ writes a value as pages will read it; `list-commands`, `find-command` and
 | `hello.lisp` | a command called from a page |
 | `events.lisp` | events both ways and shared state |
 | `frontend-dir.lisp` | a front end served from `examples/frontend/` |
+| `remote/shell.lisp`, `remote/agent.lisp` | a window in one process, its view and command in another |
 
 ```sh
 qlot exec sbcl --load examples/hello.lisp
@@ -184,14 +234,15 @@ qlot exec sbcl --load examples/hello.lisp
 
 ## Roadmap
 
-- A socket transport, so commands and views can live in another Lisp image
-  than the shell that shows them.
+- A first release.
+- A shell that restarts its client image when it dies.
 
 ## Development
 
 ```sh
 scripts/bootstrap    # SBCL 2.6.9 and qlot under .local/, cl-iris 0.2.0
 scripts/test         # the test suite; CL_PROTEUS_TEST_ONLY=<text> picks checks by name
+scripts/check-spec   # the Quint model's tests (needs quint)
 ```
 
 Test windows are transparent so a run does not flash on the screen;

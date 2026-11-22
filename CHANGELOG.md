@@ -45,6 +45,24 @@ change the API. No version has been released yet.
 - Examples skip running their app when loaded for a bundle
   (`:cl-proteus-bundle`).
 
+### Views and remote images
+
+- `define-view` keeps a small front end in the image, served at
+  `proteus://view/NAME/`; defining it again reloads every page showing it.
+  `show-view`, and `:view` in a window spec.
+- `serve-shell` listens on a Unix-domain socket (`0600`, in a `0700`
+  directory it makes); `cl-proteus/client`'s `connect-shell` connects an
+  image that holds no cl-iris or Cocoa, registers its commands and views
+  and keeps them current.
+- A page's invoke of a client's command runs in the client; events cross
+  both ways. When a client goes away its commands go and its pending
+  invokes are rejected once; the next client registers again under the
+  same windows.
+- JSON in plain Lisp (`write-json`, `read-json`) for the socket;
+  `*commands-changed-hook*` and `*views-changed-hook*`.
+- The protocol in `docs/protocol.md`, its invoke lifecycle modelled in
+  Quint under `spec/`.
+
 ### Around the code
 
 - Examples in `examples/`, each run by the test suite in a child Lisp.
